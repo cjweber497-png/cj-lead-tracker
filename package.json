@@ -1,0 +1,12 @@
+{
+  "name": "cj-lead-tracker",
+  "version": "1.0.0",
+  "description": "CJ Lead Tracker with Typeform webhook",
+  "main": "server.js",
+  "scripts": {
+    "start": "node server.js"
+  },
+  "dependencies": {
+    "express": "^4.18.2"
+  }
+}
