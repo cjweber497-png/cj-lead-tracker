@@ -6,6 +6,10 @@ const app = express();
 app.use(express.json());
 app.use(express.static(path.join(__dirname, 'public')));
 
+app.get('/', (req, res) => {
+  res.sendFile(path.join(__dirname, 'public', 'index.html'));
+});
+
 const DB_FILE = path.join(__dirname, 'data', 'leads.json');
 
 function readDB() {
