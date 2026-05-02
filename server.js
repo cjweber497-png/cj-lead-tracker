@@ -48,6 +48,7 @@ app.post('/api/leads/:id/update', (req, res) => {
   if (!lead) return res.status(404).json({ error: 'Not found' });
   if (req.body.status !== undefined) lead.status = req.body.status;
   if (req.body.notes !== undefined) lead.notes = req.body.notes;
+  if (req.body.responses !== undefined) lead.responses = req.body.responses;
   writeDB(db);
   res.json({ ok: true });
 });
@@ -60,15 +61,28 @@ app.post('/webhook', (req, res) => {
     const definition = payload?.form_response?.definition?.fields || [];
     const submitted = payload?.form_response?.submitted_at || new Date().toISOString();
 
+    function answerValue(a) {
+      if (!a) return '';
+      return a.text || a.email || a.phone_number || a.url || a.choice?.label
+        || (a.choices?.labels || []).join(', ')
+        || (a.number !== undefined ? a.number.toString() : '')
+        || (a.boolean !== undefined ? (a.boolean ? 'Yes' : 'No') : '')
+        || a.date || '';
+    }
+
     function getAnswer(keyword) {
       const field = definition.find(f =>
         f.title && f.title.toLowerCase().includes(keyword.toLowerCase())
       );
       if (!field) return '';
-      const ans = answers.find(a => a.field?.id === field.id);
-      if (!ans) return '';
-      return ans.text || ans.email || ans.phone_number || ans.choice?.label || ans.number?.toString() || '';
+      return answerValue(answers.find(a => a.field?.id === field.id));
     }
+
+    // Capture every Q+A pair so nothing gets dropped
+    const responses = answers.map(a => {
+      const field = definition.find(f => f.id === a.field?.id);
+      return { question: field?.title || '', answer: answerValue(a) };
+    }).filter(r => r.question && r.answer);
 
     const firstName = getAnswer('first name') || getAnswer('first');
     const lastName = getAnswer('last name') || getAnswer('last');
@@ -128,6 +142,7 @@ app.post('/webhook', (req, res) => {
       date: submitted.split('T')[0],
       status: 'new',
       notes: '',
+      responses,
       source: 'typeform'
     };
 
