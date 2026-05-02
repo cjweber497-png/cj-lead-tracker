@@ -42,7 +42,7 @@ select.sort-sel{height:36px;padding:0 10px;border:1px solid #d1d5db;border-radiu
 .av-skip{background:#f3f4f6;color:#6b7280}
 .lead-info{flex:1;min-width:0}
 .lead-name{font-size:14px;font-weight:600;color:#1a1a1a;margin-bottom:2px}
-.lead-job{font-size:12px;color:#6b7280;margin-bottom:6px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.lead-job{font-size:12px;color:#6b7280;margin-bottom:6px;line-height:1.4;white-space:pre-wrap;word-wrap:break-word;overflow-wrap:break-word}
 .badges{display:flex;gap:5px;flex-wrap:wrap}
 .badge{font-size:11px;padding:2px 8px;border-radius:20px;font-weight:500;white-space:nowrap}
 .b-hot{background:#d1fae5;color:#065f46}
@@ -71,6 +71,20 @@ select.sort-sel{height:36px;padding:0 10px;border:1px solid #d1d5db;border-radiu
 .notes-label{font-size:10px;font-weight:600;color:#9ca3af;letter-spacing:.06em;text-transform:uppercase;margin-bottom:4px}
 .notes-area{width:100%;padding:8px 10px;border:1px solid #d1d5db;border-radius:8px;background:#fff;color:#1a1a1a;font-size:13px;resize:vertical;min-height:60px;font-family:inherit;outline:none;transition:border-color 0.15s}
 .notes-area:focus{border-color:#059669;box-shadow:0 0 0 3px rgba(5,150,105,0.1)}
+.responses-section{margin-top:14px;padding-top:14px;border-top:1px solid #e5e5e0}
+.responses-label{font-size:10px;font-weight:600;color:#9ca3af;letter-spacing:.06em;text-transform:uppercase;margin-bottom:10px}
+.response-item{margin-bottom:14px}
+.response-item:last-child{margin-bottom:0}
+.response-q{font-size:12px;font-weight:600;color:#374151;margin-bottom:4px;line-height:1.4}
+.response-a{font-size:13px;color:#1a1a1a;line-height:1.55;white-space:pre-wrap;word-wrap:break-word;background:#fff;border:1px solid #e5e5e0;border-radius:6px;padding:8px 10px}
+.response-add{margin-top:8px;display:flex;flex-direction:column;gap:6px}
+.response-add input,.response-add textarea{padding:6px 10px;border:1px solid #d1d5db;border-radius:6px;font-size:12px;font-family:inherit;outline:none}
+.response-add textarea{resize:vertical;min-height:60px}
+.response-add input:focus,.response-add textarea:focus{border-color:#059669}
+.response-add-btn{align-self:flex-start;padding:5px 12px;border:1px solid #059669;color:#059669;background:transparent;border-radius:6px;font-size:12px;font-weight:500;cursor:pointer}
+.response-add-btn:hover{background:#059669;color:#fff}
+.response-del{margin-left:8px;background:none;border:none;color:#9ca3af;font-size:11px;cursor:pointer}
+.response-del:hover{color:#dc2626}
 .empty{text-align:center;padding:3rem;color:#9ca3af;font-size:14px}
 .toast{position:fixed;bottom:24px;right:24px;background:#1a1a1a;color:#fff;padding:10px 16px;border-radius:10px;font-size:13px;font-weight:500;transform:translateY(80px);opacity:0;transition:all 0.3s;z-index:999}
 .toast.show{transform:translateY(0);opacity:1}
@@ -111,6 +125,7 @@ let activeFilter = 'all';
 let knownIds = new Set();
 
 function initials(n){return n.trim().split(/\s+/).slice(0,2).map(w=>w[0]||'').join('').toUpperCase();}
+function escapeHtml(s){return String(s||'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));}
 
 async function fetchLeads() {
   try {
@@ -246,6 +261,21 @@ function render() {
     </div>
     <div class="notes-label">Notes</div>
     <textarea class="notes-area" placeholder="Add a note..." id="n-${l.id}" onblur="saveNote('${l.id}')">${l.notes || ''}</textarea>
+    <div class="responses-section">
+      <div class="responses-label">Application Responses</div>
+      ${(l.responses && l.responses.length > 0)
+        ? l.responses.map((r, i) => `
+            <div class="response-item">
+              <div class="response-q">${escapeHtml(r.question)}<button class="response-del" onclick="deleteResponse('${l.id}', ${i})">remove</button></div>
+              <div class="response-a">${escapeHtml(r.answer)}</div>
+            </div>`).join('')
+        : '<div style="font-size:12px;color:#9ca3af;margin-bottom:10px">No application responses captured. Paste one below.</div>'}
+      <div class="response-add">
+        <input type="text" placeholder="Question" id="rq-${l.id}">
+        <textarea placeholder="Answer / response text" id="ra-${l.id}"></textarea>
+        <button class="response-add-btn" onclick="addResponse('${l.id}')">+ Add response</button>
+      </div>
+    </div>
   </div>
 </div>`;
       }).join('');
@@ -284,6 +314,28 @@ function saveNote(id) {
     l.notes = el.value;
     updateLead(id, { notes: el.value });
   }
+}
+
+function addResponse(id) {
+  const l = leads.find(x => x.id === id);
+  const qEl = document.getElementById('rq-' + id);
+  const aEl = document.getElementById('ra-' + id);
+  if (!l || !qEl || !aEl) return;
+  const question = qEl.value.trim();
+  const answer = aEl.value.trim();
+  if (!question || !answer) return;
+  l.responses = [...(l.responses || []), { question, answer }];
+  updateLead(id, { responses: l.responses });
+  qEl.value = ''; aEl.value = '';
+  render();
+}
+
+function deleteResponse(id, idx) {
+  const l = leads.find(x => x.id === id);
+  if (!l || !l.responses) return;
+  l.responses = l.responses.filter((_, i) => i !== idx);
+  updateLead(id, { responses: l.responses });
+  render();
 }
 
 // Initial load then poll every 30 seconds
